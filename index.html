@@ -39,11 +39,11 @@
 </head>
 <body>
 
-  <div class="header">🏫 창원명지여고 아침 자습</div>
+  <div class="header">🏫 창원명지여고 아침 자습 확인</div>
 
   <div class="nav-tabs">
-    <button class="tab-btn active" onclick="switchTab('check')">📍 출석 체크</button>
-    <button class="tab-btn" onclick="switchTab('view')">📊 출석 현황</button>
+    <button class="tab-btn active" onclick="switchTab('check')">📍출석 체크</button>
+    <button class="tab-btn" onclick="switchTab('view')">📊출석 현황</button>
   </div>
 
   <div class="container">
@@ -89,11 +89,11 @@
 
     const TARGET_LAT = 35.252720;
     const TARGET_LNG = 128.649387;
-    const ALLOWED_RADIUS = 80;
+    const ALLOWED_RADIUS = 200;
 
     const IS_TEST_MODE = true; 
-    const START_HOUR = 7, START_MIN = 30;
-    const END_HOUR = 7, END_MIN = 55;
+    const START_HOUR = 7, START_MIN = 00;
+    const END_HOUR = 8, END_MIN = 25;
 
     let studentDataList = [];
     let selectedStudent = null;
