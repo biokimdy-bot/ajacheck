@@ -74,7 +74,7 @@
 
         <div id="manualInputGroup" class="hidden">
           <label>2. 학번/이름 직접 입력</label>
-          <div class="form-group"><input type="number" id="manualStudentId" placeholder="학번 입력 (예: 20101)"></div>
+          <div class="form-group"><input type="number" id="manualStudentId" placeholder="학번 입력 (예: 2101)"></div>
           <div class="form-group"><input type="text" id="manualName" placeholder="이름 입력"></div>
         </div>
 
@@ -236,7 +236,7 @@
           }
 
           if (dist <= ALLOWED_RADIUS) {
-            statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(테스트 모드)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
+            statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(출석 가능)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
             statusEl.style.color = "green";
             btn.disabled = false;
             window.userLat = pos.coords.latitude;
