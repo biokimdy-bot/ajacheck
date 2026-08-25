@@ -313,7 +313,7 @@
 
       const btn = document.getElementById("submitBtn");
       btn.disabled = true;
-      document.getElementById("status").innerHTML = "⏳ AI 사진 검증 및 기록 전송 중...";
+      document.getElementById("status").innerHTML = "⏳ AI 사진 검증 및 기록 전송 중...(20초 정도 소요)";
 
       reader.onload = function(e) {
         const base64String = e.target.result.split(',')[1];
