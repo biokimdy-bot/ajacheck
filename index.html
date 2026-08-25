@@ -27,6 +27,11 @@
     input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
     .btn-submit { width: 100%; height: 52px; background-color: #2563eb; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; }
     .btn-submit:disabled { background-color: #94a3b8; }
+    
+    /* 🔄 위치 새로고침 버튼 스타일 */
+    .btn-refresh { width: 100%; height: 42px; background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .btn-refresh:active { background-color: #e2e8f0; }
+
     .status-box { margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; background: #f8fafc; line-height: 1.4; }
     .summary-card { background: white; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
     .summary-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
@@ -39,11 +44,11 @@
 </head>
 <body>
 
-  <div class="header">🏫 창원명지여고 아침 자습 확인</div>
+  <div class="header">🏫 창원명지여고 아침 자습</div>
 
   <div class="nav-tabs">
-    <button class="tab-btn active" onclick="switchTab('check')">📍출석 체크</button>
-    <button class="tab-btn" onclick="switchTab('view')">📊출석 현황</button>
+    <button class="tab-btn active" onclick="switchTab('check')">📍 출석 체크</button>
+    <button class="tab-btn" onclick="switchTab('view')">📊 출석 현황</button>
   </div>
 
   <div class="container">
@@ -58,7 +63,7 @@
           <button class="class-btn" onclick="selectClass(5, this)">5반</button>
           <button class="class-btn" onclick="selectClass(6, this)">6반</button>
           <button class="class-btn" onclick="selectClass(7, this)">7반</button>
-          <button class="class-btn" onclick="selectClass('MANUAL', this)">명단없음</button>
+          <button class="class-btn" onclick="selectClass('MANUAL', this)">기타</button>
         </div>
 
         <div id="studentBlockGroup" class="hidden">
@@ -74,6 +79,9 @@
 
         <button id="submitBtn" class="btn-submit" onclick="checkAttendance()" disabled>출석 체크하기</button>
         <div id="status" class="status-box">위치 확인 중...</div>
+        
+        <!-- 🔄 위치 새로고침 버튼 -->
+        <button type="button" class="btn-refresh" onclick="refreshLocation()">🔄 위치 다시 측정하기</button>
       </div>
     </div>
 
@@ -84,12 +92,11 @@
   </div>
 
   <script>
-    // 🔗 1단계에서 발급받은 배포 웹 앱 URL을 붙여넣으세요.
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzkGvSmJotr4f2h4cpGVbr6ubxXaXBZJz4stMLc5mtHskceLeWebJGlqNlxDMcM8vQ/exec";
 
     const TARGET_LAT = 35.252720;
     const TARGET_LNG = 128.649387;
-    const ALLOWED_RADIUS = 200;
+    const ALLOWED_RADIUS = 25; 
 
     const IS_TEST_MODE = true; 
     const START_HOUR = 7, START_MIN = 00;
@@ -97,11 +104,20 @@
 
     let studentDataList = [];
     let selectedStudent = null;
+    let currentClientIp = "";
 
     window.onload = function() {
       loadStudentList();
       validateLocationAndTime();
+      fetchClientIp();
     };
+
+    function fetchClientIp() {
+      fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => { currentClientIp = data.ip; })
+        .catch(err => console.error("IP 로드 실패:", err));
+    }
 
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -190,9 +206,19 @@
       }
 
       statusEl.innerHTML = "📍 자습실 위치 확인 중...";
+      statusEl.style.color = "#333";
+      
       navigator.geolocation.getCurrentPosition(
         function(pos) {
           const dist = getDistance(pos.coords.latitude, pos.coords.longitude, TARGET_LAT, TARGET_LNG);
+          
+          if (pos.coords.accuracy > 25) {
+            statusEl.innerHTML = "❌ GPS 오차가 큽니다. 창가 근처에서 다시 시도해 주세요.";
+            statusEl.style.color = "red";
+            btn.disabled = true;
+            return;
+          }
+
           if (dist <= ALLOWED_RADIUS) {
             statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(테스트 모드)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
             statusEl.style.color = "green";
@@ -212,6 +238,17 @@
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
+    }
+
+    function refreshLocation() {
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("submitBtn");
+      
+      btn.disabled = true;
+      statusEl.innerHTML = "🔄 위치 정보를 다시 불러오는 중...";
+      statusEl.style.color = "#475569";
+      
+      validateLocationAndTime();
     }
 
     function getDistance(lat1, lon1, lat2, lon2) {
@@ -245,7 +282,13 @@
 
       fetch(GAS_WEB_APP_URL, {
         method: "POST",
-        body: JSON.stringify({ id: id, name: name, lat: window.userLat, lng: window.userLng })
+        body: JSON.stringify({ 
+          id: id, 
+          name: name, 
+          lat: window.userLat, 
+          lng: window.userLng,
+          ip: currentClientIp
+        })
       })
       .then(res => res.json())
       .then(res => {
