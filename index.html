@@ -91,6 +91,7 @@
 
     <!-- 2. 오늘 출석 현황 탭 -->
     <div id="tab-status" class="hidden">
+      <button type="button" class="btn-refresh" style="margin-bottom: 12px; margin-top: 0;" onclick="loadTodayAttendanceStatus(true)">🔄 현황 새로고침</button>
       <div class="card" style="margin-bottom: 12px; padding: 14px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;">
         <div id="todaySummaryHeader" style="font-size: 15px; font-weight: bold; color: #1e40af; text-align: center;">오늘 출석 현황을 불러오는 중...</div>
       </div>
@@ -99,7 +100,10 @@
 
     <!-- 3. 누적 출석 기록 탭 -->
     <div id="tab-view" class="hidden">
-      <input type="text" id="searchInput" style="width:100%; height:44px; padding:0 12px; margin-bottom:14px; border:1px solid #cbd5e1; border-radius:8px;" placeholder="이름 또는 학번 검색..." onkeyup="filterViewer()">
+      <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+        <input type="text" id="searchInput" style="flex: 1; height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px;" placeholder="이름 또는 학번 검색..." onkeyup="filterViewer()">
+        <button type="button" class="btn-refresh" style="width: auto; padding: 0 14px; margin-top: 0; white-space: nowrap;" onclick="loadAttendanceSummary(true)">🔄 새로고침</button>
+      </div>
       <div id="viewerContent"><div class="status-box">기록을 불러오는 중...</div></div>
     </div>
   </div>
@@ -118,6 +122,9 @@
     let studentDataList = [];
     let selectedStudent = null;
 
+    // 💡 클라이언트 데이터 캐시 변수
+    let cachedSummaryData = null;
+
     window.onload = function() {
       loadStudentList();
       validateLocationAndTime();
@@ -135,11 +142,11 @@
       } else if (tab === 'status') {
         document.querySelectorAll('.tab-btn')[1].classList.add('active');
         document.getElementById('tab-status').classList.remove('hidden');
-        loadTodayAttendanceStatus();
+        loadTodayAttendanceStatus(false);
       } else {
         document.querySelectorAll('.tab-btn')[2].classList.add('active');
         document.getElementById('tab-view').classList.remove('hidden');
-        loadAttendanceSummary();
+        loadAttendanceSummary(false);
       }
     }
 
@@ -268,7 +275,6 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    // 💡 버튼 클릭 시 카메라 촬영창 열기 전 유효성 검사
     function triggerCamera() {
       let id = "", name = "";
       const manualGroup = document.getElementById("manualInputGroup");
@@ -286,11 +292,9 @@
         return;
       }
 
-      // 숨겨진 카메라 파일 입력 트리거
       document.getElementById("cameraInput").click();
     }
 
-    // 💡 사진 촬영 완료 후 Base64 변환 및 서버 전송
     function processAttendanceWithPhoto(input) {
       if (!input.files || !input.files[0]) return;
 
@@ -312,7 +316,6 @@
       document.getElementById("status").innerHTML = "⏳ AI 사진 검증 및 기록 전송 중...";
 
       reader.onload = function(e) {
-        // Base64 데이터 추출 (prefix 제외한 순수 데이터)
         const base64String = e.target.result.split(',')[1];
 
         fetch(GAS_WEB_APP_URL, {
@@ -330,12 +333,13 @@
           alert(res.message);
           document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
           btn.disabled = !res.success;
+          if (res.success) cachedSummaryData = null; // 출석 성공 시 캐시 초기화
         })
         .catch(err => {
-          // CORS/리다이렉트 특유의 catch 방어
           alert(name + "(" + id + ") 학생, 출석 전송 완료!");
           document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
           btn.disabled = true;
+          cachedSummaryData = null; // 출석 전송 시 캐시 초기화
         });
       };
 
@@ -352,7 +356,58 @@
       return `${year}.${month}.${day}`;
     }
 
-    function loadTodayAttendanceStatus() {
+    function renderTodayStatus(summary) {
+      const container = document.getElementById("todayViewerContent");
+      const headerEl = document.getElementById("todaySummaryHeader");
+
+      if (!summary || summary.length === 0) {
+        headerEl.innerHTML = "오늘 출석한 학생이 없습니다. (0명)";
+        container.innerHTML = '<div class="status-box">오늘 출석 기록이 없습니다.</div>';
+        return;
+      }
+
+      const todayStr = getTodayString();
+      let todayCheckedIn = [];
+
+      summary.forEach(s => {
+        s.records.forEach(r => {
+          if (r.date === todayStr) {
+            todayCheckedIn.push({ id: s.id, name: s.name, time: r.time });
+          }
+        });
+      });
+
+      todayCheckedIn.sort((a, b) => a.time.localeCompare(b.time));
+      headerEl.innerHTML = `📅 오늘(${todayStr}) 총 출석 인원: <span style="color:#2563eb; font-size:17px;">${todayCheckedIn.length}명</span>`;
+
+      if (todayCheckedIn.length === 0) {
+        container.innerHTML = '<div class="status-box">오늘 출석 기록이 없습니다.</div>';
+        return;
+      }
+
+      let html = '';
+      todayCheckedIn.forEach((item, index) => {
+        html += `
+          <div class="summary-card" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; margin-bottom: 8px;">
+            <div>
+              <span style="font-size: 13px; color: #64748b; font-weight: bold; margin-right: 8px;">#${index + 1}</span>
+              <span class="student-info" style="font-size: 16px;">${item.name}</span>
+              <small style="color:#64748b; margin-left: 4px;">(${item.id})</small>
+            </div>
+            <div style="font-size: 14px; font-weight: bold; color: #1e40af; background: #dbeafe; padding: 4px 10px; border-radius: 20px;">
+              ⏰ ${item.time}
+            </div>
+          </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function loadTodayAttendanceStatus(forceRefresh = false) {
+      if (cachedSummaryData && !forceRefresh) {
+        renderTodayStatus(cachedSummaryData);
+        return;
+      }
+
       const container = document.getElementById("todayViewerContent");
       const headerEl = document.getElementById("todaySummaryHeader");
       container.innerHTML = '<div class="status-box">기록을 불러오는 중...</div>';
@@ -361,74 +416,56 @@
       fetch(`${GAS_WEB_APP_URL}?action=getSummary`)
         .then(res => res.json())
         .then(summary => {
-          if (!summary || summary.length === 0) {
-            headerEl.innerHTML = "오늘 출석한 학생이 없습니다. (0명)";
-            container.innerHTML = '<div class="status-box">오늘 출석 기록이 없습니다.</div>';
-            return;
-          }
-
-          const todayStr = getTodayString();
-          let todayCheckedIn = [];
-
-          summary.forEach(s => {
-            s.records.forEach(r => {
-              if (r.date === todayStr) {
-                todayCheckedIn.push({ id: s.id, name: s.name, time: r.time });
-              }
-            });
-          });
-
-          todayCheckedIn.sort((a, b) => a.time.localeCompare(b.time));
-          headerEl.innerHTML = `📅 오늘(${todayStr}) 총 출석 인원: <span style="color:#2563eb; font-size:17px;">${todayCheckedIn.length}명</span>`;
-
-          if (todayCheckedIn.length === 0) {
-            container.innerHTML = '<div class="status-box">오늘 출석 기록이 없습니다.</div>';
-            return;
-          }
-
-          let html = '';
-          todayCheckedIn.forEach((item, index) => {
-            html += `
-              <div class="summary-card" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; margin-bottom: 8px;">
-                <div>
-                  <span style="font-size: 13px; color: #64748b; font-weight: bold; margin-right: 8px;">#${index + 1}</span>
-                  <span class="student-info" style="font-size: 16px;">${item.name}</span>
-                  <small style="color:#64748b; margin-left: 4px;">(${item.id})</small>
-                </div>
-                <div style="font-size: 14px; font-weight: bold; color: #1e40af; background: #dbeafe; padding: 4px 10px; border-radius: 20px;">
-                  ⏰ ${item.time}
-                </div>
-              </div>`;
-          });
-          container.innerHTML = html;
+          cachedSummaryData = summary;
+          renderTodayStatus(summary);
+        })
+        .catch(err => {
+          headerEl.innerHTML = "❌ 현황 불러오기 실패";
+          container.innerHTML = '<div class="status-box">기록을 불러오지 못했습니다.</div>';
         });
     }
 
-    function loadAttendanceSummary() {
+    function renderAttendanceSummary(summary) {
+      const container = document.getElementById("viewerContent");
+
+      if (!summary || summary.length === 0) {
+        container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
+        return;
+      }
+      let html = '';
+      summary.forEach(s => {
+        html += `
+          <div class="summary-card student-card" data-search="${s.id} ${s.name}">
+            <div class="summary-header" onclick="toggleDetails('${s.id}')">
+              <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
+              <div class="badge-count">총 ${s.totalCount}회</div>
+            </div>
+            <div id="details-${s.id}" class="record-details">
+              ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
+            </div>
+          </div>`;
+      });
+      container.innerHTML = html;
+      filterViewer();
+    }
+
+    function loadAttendanceSummary(forceRefresh = false) {
+      if (cachedSummaryData && !forceRefresh) {
+        renderAttendanceSummary(cachedSummaryData);
+        return;
+      }
+
       const container = document.getElementById("viewerContent");
       container.innerHTML = '<div class="status-box">기록을 불러오는 중...</div>';
 
       fetch(`${GAS_WEB_APP_URL}?action=getSummary`)
         .then(res => res.json())
         .then(summary => {
-          if (!summary || summary.length === 0) {
-            container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
-            return;
-          }
-          let html = '';
-          summary.forEach(s => {
-            html += `
-              <div class="summary-card student-card" data-search="${s.id} ${s.name}">
-                <div class="summary-header" onclick="toggleDetails('${s.id}')">
-                  <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
-                  <div class="badge-count">총 ${s.totalCount}회</div>
-                </div>
-                <div id="details-${s.id}" class="record-details">
-                  ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
-                </div>
-              </div>`;
-          });
-          container.innerHTML = html;
+          cachedSummaryData = summary;
+          renderAttendanceSummary(summary);
+        })
+        .catch(err => {
+          container.innerHTML = '<div class="status-box">기록을 불러오지 못했습니다.</div>';
         });
     }
 
