@@ -426,15 +426,12 @@
 
           
 
-          if (pos.coords.accuracy > 80) {
-
-            statusEl.innerHTML = "❌ GPS 오차가 큽니다. 창가 근처에서 다시 시도해 주세요.";
-
-            statusEl.style.color = "red";
-
-            btn.disabled = true;
-
-            return;
+          if (pos.coords.accuracy > 25) {
+  // 괄호 안에 실제 기기가 측정한 오차(accuracy) 값을 같이 띄워봅니다.
+  statusEl.innerHTML = `❌ GPS 오차가 큽니다. (현재 오차: ${Math.round(pos.coords.accuracy)}m)<br>창가 근처에서 다시 시도해 주세요.`;
+  statusEl.style.color = "red";
+  btn.disabled = true;
+  return;
 
           }
 
