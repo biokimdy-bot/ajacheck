@@ -78,14 +78,18 @@
           <div class="form-group"><input type="text" id="manualName" placeholder="이름 입력"></div>
         </div>
 
-        <button id="submitBtn" class="btn-submit" onclick="checkAttendance()" disabled>출석 체크하기</button>
+        <!-- 💡 카메라 촬영을 바로 호출하기 위한 숨김 파일 인풋 -->
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="processAttendanceWithPhoto(this)">
+
+        <button id="submitBtn" class="btn-submit" onclick="triggerCamera()" disabled>촬영 및 출석체크하기</button>
+        <div style="font-size: 12px; color: #64748b; text-align: center; margin-top: 6px;">자습실 팻말이 보이도록 사진을 찍어주세요</div>
         <div id="status" class="status-box">위치 확인 중...</div>
         
         <button type="button" class="btn-refresh" onclick="refreshLocation()">🔄 위치 다시 측정하기</button>
       </div>
     </div>
 
-    <!-- 2. 오늘 출석 현황 탭 (신규) -->
+    <!-- 2. 오늘 출석 현황 탭 -->
     <div id="tab-status" class="hidden">
       <div class="card" style="margin-bottom: 12px; padding: 14px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;">
         <div id="todaySummaryHeader" style="font-size: 15px; font-weight: bold; color: #1e40af; text-align: center;">오늘 출석 현황을 불러오는 중...</div>
@@ -93,7 +97,7 @@
       <div id="todayViewerContent"><div class="status-box">기록을 불러오는 중...</div></div>
     </div>
 
-    <!-- 3. 누적 출석 기록 탭 (기존 출석 현황) -->
+    <!-- 3. 누적 출석 기록 탭 -->
     <div id="tab-view" class="hidden">
       <input type="text" id="searchInput" style="width:100%; height:44px; padding:0 12px; margin-bottom:14px; border:1px solid #cbd5e1; border-radius:8px;" placeholder="이름 또는 학번 검색..." onkeyup="filterViewer()">
       <div id="viewerContent"><div class="status-box">기록을 불러오는 중...</div></div>
@@ -101,7 +105,7 @@
   </div>
 
   <script>
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbybV4zobHvwHpcphLQXXAKwSzP5ihRNdCxxo_DlVL0nIgelX7fAgIdLxmiN3XdFLVY/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzqIXNZ09oMXzR5xvhbOP_bICzSxQ5XiuzOf7YeFg7Y8rqIdnfNj-nSfdWJLcS4VAY/exec";
 
     const TARGET_LAT = 35.252720;
     const TARGET_LNG = 128.649387;
@@ -113,20 +117,11 @@
 
     let studentDataList = [];
     let selectedStudent = null;
-    let currentClientIp = "";
 
     window.onload = function() {
       loadStudentList();
       validateLocationAndTime();
-      fetchClientIp();
     };
-
-    function fetchClientIp() {
-      fetch('https://api.ipify.org?format=json')
-        .then(res => res.json())
-        .then(data => { currentClientIp = data.ip; })
-        .catch(err => console.error("IP 로드 실패:", err));
-    }
 
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -273,7 +268,8 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function checkAttendance() {
+    // 💡 버튼 클릭 시 카메라 촬영창 열기 전 유효성 검사
+    function triggerCamera() {
       let id = "", name = "";
       const manualGroup = document.getElementById("manualInputGroup");
 
@@ -290,34 +286,62 @@
         return;
       }
 
-      const btn = document.getElementById("submitBtn");
-      btn.disabled = true;
-      document.getElementById("status").innerHTML = "⏳ 기록 전송 중...";
-
-      fetch(GAS_WEB_APP_URL, {
-        method: "POST",
-        body: JSON.stringify({ 
-          id: id, 
-          name: name, 
-          lat: window.userLat, 
-          lng: window.userLng,
-          ip: currentClientIp
-        })
-      })
-      .then(res => res.json())
-      .then(res => {
-        alert(res.message);
-        document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
-        btn.disabled = !res.success;
-      })
-      .catch(err => {
-        alert(name + "(" + id + ") 학생, 출석 전송 완료!");
-        document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
-        btn.disabled = true;
-      });
+      // 숨겨진 카메라 파일 입력 트리거
+      document.getElementById("cameraInput").click();
     }
 
-    // 오늘 날짜를 "YYYY.MM.DD" 형식으로 생성 (Asia/Seoul 기준)
+    // 💡 사진 촬영 완료 후 Base64 변환 및 서버 전송
+    function processAttendanceWithPhoto(input) {
+      if (!input.files || !input.files[0]) return;
+
+      let id = "", name = "";
+      const manualGroup = document.getElementById("manualInputGroup");
+      if (!manualGroup.classList.contains('hidden')) {
+        id = document.getElementById("manualStudentId").value.trim();
+        name = document.getElementById("manualName").value.trim();
+      } else if (selectedStudent) {
+        id = selectedStudent.id;
+        name = selectedStudent.name;
+      }
+
+      const file = input.files[0];
+      const reader = new FileReader();
+
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      document.getElementById("status").innerHTML = "⏳ AI 사진 검증 및 기록 전송 중...";
+
+      reader.onload = function(e) {
+        // Base64 데이터 추출 (prefix 제외한 순수 데이터)
+        const base64String = e.target.result.split(',')[1];
+
+        fetch(GAS_WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({ 
+            id: id, 
+            name: name, 
+            lat: window.userLat, 
+            lng: window.userLng,
+            image: base64String
+          })
+        })
+        .then(res => res.json())
+        .then(res => {
+          alert(res.message);
+          document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
+          btn.disabled = !res.success;
+        })
+        .catch(err => {
+          // CORS/리다이렉트 특유의 catch 방어
+          alert(name + "(" + id + ") 학생, 출석 전송 완료!");
+          document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
+          btn.disabled = true;
+        });
+      };
+
+      reader.readAsDataURL(file);
+    }
+
     function getTodayString() {
       const now = new Date();
       const options = { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' };
@@ -328,7 +352,6 @@
       return `${year}.${month}.${day}`;
     }
 
-    // 오늘 출석 현황 불러오기 (신규 탭)
     function loadTodayAttendanceStatus() {
       const container = document.getElementById("todayViewerContent");
       const headerEl = document.getElementById("todaySummaryHeader");
@@ -350,18 +373,12 @@
           summary.forEach(s => {
             s.records.forEach(r => {
               if (r.date === todayStr) {
-                todayCheckedIn.push({
-                  id: s.id,
-                  name: s.name,
-                  time: r.time
-                });
+                todayCheckedIn.push({ id: s.id, name: s.name, time: r.time });
               }
             });
           });
 
-          // 출석 시간순(빠른 순) 정렬
           todayCheckedIn.sort((a, b) => a.time.localeCompare(b.time));
-
           headerEl.innerHTML = `📅 오늘(${todayStr}) 총 출석 인원: <span style="color:#2563eb; font-size:17px;">${todayCheckedIn.length}명</span>`;
 
           if (todayCheckedIn.length === 0) {
@@ -384,15 +401,9 @@
               </div>`;
           });
           container.innerHTML = html;
-        })
-        .catch(err => {
-          console.error("오늘 출석 현황 로드 실패:", err);
-          headerEl.innerHTML = "출석 현황을 불러오지 못했습니다.";
-          container.innerHTML = '<div class="status-box" style="color:red;">데이터를 불러오는 중 오류가 발생했습니다.</div>';
         });
     }
 
-    // 누적 출석 기록 불러오기 (기존 탭)
     function loadAttendanceSummary() {
       const container = document.getElementById("viewerContent");
       container.innerHTML = '<div class="status-box">기록을 불러오는 중...</div>';
