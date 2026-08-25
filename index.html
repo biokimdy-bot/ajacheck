@@ -64,7 +64,7 @@
           <button class="class-btn" onclick="selectClass(5, this)">5반</button>
           <button class="class-btn" onclick="selectClass(6, this)">6반</button>
           <button class="class-btn" onclick="selectClass(7, this)">7반</button>
-          <button class="class-btn" onclick="selectClass('MANUAL', this)">기타</button>
+          <button class="class-btn" onclick="selectClass('MANUAL', this)">명단 추가</button>
         </div>
 
         <div id="studentBlockGroup" class="hidden">
@@ -282,6 +282,14 @@
       if (!manualGroup.classList.contains('hidden')) {
         id = document.getElementById("manualStudentId").value.trim();
         name = document.getElementById("manualName").value.trim();
+
+        if (id || name) {
+          const exists = studentDataList.some(s => String(s.id).trim() === id && String(s.name).trim() === name);
+          if (exists) {
+            alert("이미 명단에 존재하는 학생입니다. 해당 반 버튼을 눌러 본인의 이름을 선택해 주세요.");
+            return;
+          }
+        }
       } else if (selectedStudent) {
         id = selectedStudent.id;
         name = selectedStudent.name;
