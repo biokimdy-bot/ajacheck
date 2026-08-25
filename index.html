@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>아침 자습 카메라 출석부</title>
+  <title>아침 자습 출석부</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; color: #333; }
     .header { background: #1e293b; color: white; padding: 16px; text-align: center; font-size: 18px; font-weight: bold; }
+    .nav-tabs { display: flex; background: white; border-bottom: 1px solid #e2e8f0; }
+    .tab-btn { flex: 1; padding: 14px; text-align: center; font-size: 15px; font-weight: 600; color: #64748b; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; }
+    .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
     .container { padding: 16px; max-width: 480px; margin: 0 auto; }
-    .card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
     .class-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
     .class-btn { padding: 10px 0; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; color: #334155; cursor: pointer; text-align: center; }
@@ -20,83 +23,116 @@
     .student-block .id { font-size: 11px; color: #64748b; margin-top: 2px; }
     .student-block.selected { background: #eff6ff; border-color: #2563eb; }
     .student-block.selected .name { color: #2563eb; }
+    .form-group { margin-bottom: 14px; }
+    input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
+    .btn-submit { width: 100%; height: 52px; background-color: #2563eb; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; }
+    .btn-submit:disabled { background-color: #94a3b8; }
     
-    .btn-submit { width: 100%; height: 52px; background-color: #2563eb; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-    .status-box { margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; background: #f8fafc; line-height: 1.4; }
-    .hidden { display: none !important; }
+    /* 🔄 위치 새로고침 버튼 스타일 */
+    .btn-refresh { width: 100%; height: 42px; background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .btn-refresh:active { background-color: #e2e8f0; }
 
-    /* 📸 카메라 모달 스타일 */
-    .camera-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; z-index:9999; }
-    .camera-box { background:white; width:90%; max-width:400px; border-radius:16px; padding:16px; text-align:center; }
-    .camera-box h3 { margin:0 0 6px 0; font-size:16px; }
-    .camera-box p { margin:0 0 12px 0; font-size:12px; color:#64748b; }
-    video { width:100%; height:260px; object-fit:cover; border-radius:10px; background:#000; }
-    .camera-btn-group { display:flex; gap:8px; margin-top:12px; }
-    .btn-capture { flex:2; height:46px; background:#16a34a; color:white; border:none; border-radius:8px; font-weight:bold; font-size:15px; cursor:pointer; }
-    .btn-close { flex:1; height:46px; background:#94a3b8; color:white; border:none; border-radius:8px; font-weight:bold; font-size:15px; cursor:pointer; }
+    .status-box { margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; background: #f8fafc; line-height: 1.4; }
+    .summary-card { background: white; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+    .summary-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .student-info { font-size: 16px; font-weight: bold; color: #1e293b; }
+    .badge-count { background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+    .record-details { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e2e8f0; font-size: 13px; color: #64748b; }
+    .record-item { display: flex; justify-content: space-between; padding: 4px 0; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
 
   <div class="header">🏫 창원명지여고 아침 자습</div>
 
-  <div class="container">
-    <div class="card">
-      <label>1. 반 선택</label>
-      <div class="class-grid">
-        <button class="class-btn" onclick="selectClass(1, this)">1반</button>
-        <button class="class-btn" onclick="selectClass(2, this)">2반</button>
-        <button class="class-btn" onclick="selectClass(3, this)">3반</button>
-        <button class="class-btn" onclick="selectClass(4, this)">4반</button>
-        <button class="class-btn" onclick="selectClass(5, this)">5반</button>
-        <button class="class-btn" onclick="selectClass(6, this)">6반</button>
-        <button class="class-btn" onclick="selectClass(7, this)">7반</button>
-        <button class="class-btn" onclick="selectClass('MANUAL', this)">기타</button>
-      </div>
-
-      <div id="studentBlockGroup" class="hidden">
-        <label>2. 이름 선택</label>
-        <div id="studentGrid" class="student-grid"></div>
-      </div>
-
-      <div id="manualInputGroup" class="hidden">
-        <label>2. 학번/이름 직접 입력</label>
-        <div style="margin-bottom:8px;"><input type="number" id="manualStudentId" placeholder="학번 입력" style="width:100%; height:44px; padding:0 10px;"></div>
-        <div style="margin-bottom:8px;"><input type="text" id="manualName" placeholder="이름 입력" style="width:100%; height:44px; padding:0 10px;"></div>
-      </div>
-
-      <!-- 📸 카메라 실행 버튼 -->
-      <button class="btn-submit" onclick="openCamera()">📸 촬영 및 출석하기</button>
-      <div id="status" class="status-box">반과 이름을 선택한 후 촬영을 시작해 주세요.</div>
-    </div>
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('check')">📍 출석 체크</button>
+    <button class="tab-btn" onclick="switchTab('view')">📊 출석 현황</button>
   </div>
 
-  <!-- 📸 실시간 카메라 실행 모달 화면 -->
-  <div id="cameraModal" class="camera-modal hidden">
-    <div class="camera-box">
-      <h3>📸 자습실 현장 촬영</h3>
-      <p>자습실 배경(책상, 사물함 등)이 잘 보이게 찍어주세요.</p>
-      
-      <video id="webcam" autoplay playsinline muted></video>
-      <canvas id="canvas" class="hidden"></canvas>
+  <div class="container">
+    <div id="tab-check">
+      <div class="card">
+        <label>1. 반 선택</label>
+        <div class="class-grid">
+          <button class="class-btn" onclick="selectClass(1, this)">1반</button>
+          <button class="class-btn" onclick="selectClass(2, this)">2반</button>
+          <button class="class-btn" onclick="selectClass(3, this)">3반</button>
+          <button class="class-btn" onclick="selectClass(4, this)">4반</button>
+          <button class="class-btn" onclick="selectClass(5, this)">5반</button>
+          <button class="class-btn" onclick="selectClass(6, this)">6반</button>
+          <button class="class-btn" onclick="selectClass(7, this)">7반</button>
+          <button class="class-btn" onclick="selectClass('MANUAL', this)">기타</button>
+        </div>
 
-      <div class="camera-btn-group">
-        <button class="btn-capture" onclick="captureAndSubmit()">📷 사진 찍고 출석 전송</button>
-        <button class="btn-close" onclick="closeCamera()">취소</button>
+        <div id="studentBlockGroup" class="hidden">
+          <label>2. 이름 선택</label>
+          <div id="studentGrid" class="student-grid"></div>
+        </div>
+
+        <div id="manualInputGroup" class="hidden">
+          <label>2. 학번/이름 직접 입력</label>
+          <div class="form-group"><input type="number" id="manualStudentId" placeholder="학번 입력 (예: 20101)"></div>
+          <div class="form-group"><input type="text" id="manualName" placeholder="이름 입력"></div>
+        </div>
+
+        <button id="submitBtn" class="btn-submit" onclick="checkAttendance()" disabled>출석 체크하기</button>
+        <div id="status" class="status-box">위치 확인 중...</div>
+        
+        <!-- 🔄 위치 새로고침 버튼 -->
+        <button type="button" class="btn-refresh" onclick="refreshLocation()">🔄 위치 다시 측정하기</button>
       </div>
+    </div>
+
+    <div id="tab-view" class="hidden">
+      <input type="text" id="searchInput" style="width:100%; height:44px; padding:0 12px; margin-bottom:14px; border:1px solid #cbd5e1; border-radius:8px;" placeholder="이름 또는 학번 검색..." onkeyup="filterViewer()">
+      <div id="viewerContent"><div class="status-box">기록을 불러오는 중...</div></div>
     </div>
   </div>
 
   <script>
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwTrv7CNZHdlfi2fHJd8Bkh0ramX1_PUjb8BcnwIwcu6WXfw-umNX6nfW3X-yIvuOw/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzkGvSmJotr4f2h4cpGVbr6ubxXaXBZJz4stMLc5mtHskceLeWebJGlqNlxDMcM8vQ/exec";
+
+    const TARGET_LAT = 35.252720;
+    const TARGET_LNG = 128.649387;
+    const ALLOWED_RADIUS = 500; 
+
+    const IS_TEST_MODE = true; 
+    const START_HOUR = 7, START_MIN = 00;
+    const END_HOUR = 8, END_MIN = 25;
 
     let studentDataList = [];
     let selectedStudent = null;
-    let mediaStream = null;
+    let currentClientIp = "";
 
     window.onload = function() {
       loadStudentList();
+      validateLocationAndTime();
+      fetchClientIp();
     };
+
+    function fetchClientIp() {
+      fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => { currentClientIp = data.ip; })
+        .catch(err => console.error("IP 로드 실패:", err));
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-check').classList.add('hidden');
+      document.getElementById('tab-view').classList.add('hidden');
+
+      if (tab === 'check') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-check').classList.remove('hidden');
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-view').classList.remove('hidden');
+        loadAttendanceSummary();
+      }
+    }
 
     function loadStudentList() {
       fetch(`${GAS_WEB_APP_URL}?action=getStudentList`)
@@ -149,11 +185,84 @@
       });
     }
 
-    // 📸 카메라 실행 함수 (후면 카메라 선택)
-    async function openCamera() {
+    function validateLocationAndTime() {
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("submitBtn");
+
+      if (!IS_TEST_MODE) {
+        const now = new Date();
+        const currentVal = now.getHours() * 60 + now.getMinutes();
+        if (currentVal < (START_HOUR * 60 + START_MIN) || currentVal > (END_HOUR * 60 + END_MIN)) {
+          statusEl.innerHTML = "❌ 출석 인정 시간이 아닙니다.<br>(인정 시간: 07:30 ~ 07:55)";
+          statusEl.style.color = "red";
+          btn.disabled = true;
+          return;
+        }
+      }
+
+      if (!navigator.geolocation) {
+        statusEl.innerHTML = "❌ 위치 서비스를 지원하지 않는 기기입니다.";
+        return;
+      }
+
+      statusEl.innerHTML = "📍 자습실 위치 확인 중...";
+      statusEl.style.color = "#333";
+      
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          const dist = getDistance(pos.coords.latitude, pos.coords.longitude, TARGET_LAT, TARGET_LNG);
+          
+          if (pos.coords.accuracy > 25) {
+            statusEl.innerHTML = "❌ GPS 오차가 큽니다. 창가 근처에서 다시 시도해 주세요.";
+            statusEl.style.color = "red";
+            btn.disabled = true;
+            return;
+          }
+
+          if (dist <= ALLOWED_RADIUS) {
+            statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(테스트 모드)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
+            statusEl.style.color = "green";
+            btn.disabled = false;
+            window.userLat = pos.coords.latitude;
+            window.userLng = pos.coords.longitude;
+          } else {
+            statusEl.innerHTML = `❌ 자습실 내부가 아닙니다.<br>(거리: ${Math.round(dist)}m)`;
+            statusEl.style.color = "red";
+            btn.disabled = true;
+          }
+        },
+        function() {
+          statusEl.innerHTML = "❌ 위치 권한이 거부되었습니다.";
+          statusEl.style.color = "red";
+          btn.disabled = true;
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function refreshLocation() {
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("submitBtn");
+      
+      btn.disabled = true;
+      statusEl.innerHTML = "🔄 위치 정보를 다시 불러오는 중...";
+      statusEl.style.color = "#475569";
+      
+      validateLocationAndTime();
+    }
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function checkAttendance() {
       let id = "", name = "";
       const manualGroup = document.getElementById("manualInputGroup");
-      
+
       if (!manualGroup.classList.contains('hidden')) {
         id = document.getElementById("manualStudentId").value.trim();
         name = document.getElementById("manualName").value.trim();
@@ -163,93 +272,73 @@
       }
 
       if (!id || !name) {
-        alert("먼저 반과 본인의 이름을 선택해 주세요.");
+        alert("반을 선택하고 본인의 이름 블록을 터치해주세요.");
         return;
       }
 
-      try {
-        // 스마트폰 후면 카메라 우선 요청
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: "environment" } }
-        }).catch(() => {
-          // 후면 카메라 전용 접근 실패시 일반 카메라 요청
-          return navigator.mediaDevices.getUserMedia({ video: true });
-        });
-
-        const video = document.getElementById("webcam");
-        video.srcObject = mediaStream;
-        document.getElementById("cameraModal").classList.remove("hidden");
-      } catch (err) {
-        alert("카메라를 켤 수 없습니다. 브라우저의 카메라 사용 권한을 허용해 주세요.");
-      }
-    }
-
-    // 카메라 끄기
-    function closeCamera() {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-      }
-      document.getElementById("cameraModal").classList.add("hidden");
-    }
-
-    // 📷 촬영 및 자동 제출 함수
-    function captureAndSubmit() {
-      const video = document.getElementById("webcam");
-      const canvas = document.getElementById("canvas");
-      const ctx = canvas.getContext("2d");
-
-      // 800px 해상도로 압축 (전송 속도 최적화)
-      const targetWidth = 800;
-      const scale = targetWidth / video.videoWidth;
-      canvas.width = targetWidth;
-      canvas.height = video.videoHeight * scale;
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Base64 데이터 추출 (JPEG 70% 품질)
-      const base64Image = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
-
-      closeCamera(); // 카메라 종료
-
-      // 서버로 사진 데이터 전송
-      sendToGAS(base64Image);
-    }
-
-    function sendToGAS(base64Image) {
-      let id = "", name = "";
-      const manualGroup = document.getElementById("manualInputGroup");
-
-      if (!manualGroup.classList.contains('hidden')) {
-        id = document.getElementById("manualStudentId").value.trim();
-        name = document.getElementById("manualName").value.trim();
-      } else if (selectedStudent) {
-        id = selectedStudent.id;
-        name = selectedStudent.name;
-      }
-
-      const statusEl = document.getElementById("status");
-      statusEl.innerHTML = "🤖 AI가 자습실 장소를 검증하고 있습니다. 잠시만 기다려 주세요... (약 2~3초 소요)";
-      statusEl.style.color = "#2563eb";
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      document.getElementById("status").innerHTML = "⏳ 기록 전송 중...";
 
       fetch(GAS_WEB_APP_URL, {
         method: "POST",
-        body: JSON.stringify({
-          id: id,
-          name: name,
-          imageBase64: base64Image
+        body: JSON.stringify({ 
+          id: id, 
+          name: name, 
+          lat: window.userLat, 
+          lng: window.userLng,
+          ip: currentClientIp
         })
       })
       .then(res => res.json())
       .then(res => {
         alert(res.message);
-        statusEl.innerHTML = res.success ? res.message : res.message;
-        statusEl.style.color = res.success ? "green" : "red";
+        document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
+        btn.disabled = !res.success;
       })
       .catch(err => {
-        alert("전송 실패: " + err.message);
-        statusEl.innerHTML = "❌ 전송 중 오류가 발생했습니다.";
-        statusEl.style.color = "red";
+        alert("전송 중 오류 발생");
+        btn.disabled = false;
+      });
+    }
+
+    function loadAttendanceSummary() {
+      const container = document.getElementById("viewerContent");
+      container.innerHTML = '<div class="status-box">기록을 불러오는 중...</div>';
+
+      fetch(`${GAS_WEB_APP_URL}?action=getSummary`)
+        .then(res => res.json())
+        .then(summary => {
+          if (!summary || summary.length === 0) {
+            container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
+            return;
+          }
+          let html = '';
+          summary.forEach(s => {
+            html += `
+              <div class="summary-card student-card" data-search="${s.id} ${s.name}">
+                <div class="summary-header" onclick="toggleDetails('${s.id}')">
+                  <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
+                  <div class="badge-count">총 ${s.totalCount}회</div>
+                </div>
+                <div id="details-${s.id}" class="record-details">
+                  ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
+                </div>
+              </div>`;
+          });
+          container.innerHTML = html;
+        });
+    }
+
+    function toggleDetails(id) {
+      const el = document.getElementById(`details-${id}`);
+      el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function filterViewer() {
+      const q = document.getElementById("searchInput").value.toLowerCase();
+      document.querySelectorAll('.student-card').forEach(card => {
+        card.style.display = card.getAttribute('data-search').toLowerCase().includes(q) ? 'block' : 'none';
       });
     }
   </script>
