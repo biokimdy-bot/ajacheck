@@ -467,28 +467,32 @@
     }
 
     function renderAttendanceSummary(summary) {
-      const container = document.getElementById("viewerContent");
+  const container = document.getElementById("viewerContent");
 
-      if (!summary || summary.length === 0) {
-        container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
-        return;
-      }
-      let html = '';
-      summary.forEach(s => {
-        html += `
-          <div class="summary-card student-card" data-search="${s.id} ${s.name}">
-            <div class="summary-header" onclick="toggleDetails('${s.id}')">
-              <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
-              <div class="badge-count">총 ${s.totalCount}회</div>
-            </div>
-            <div id="details-${s.id}" class="record-details">
-              ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
-            </div>
-          </div>`;
-      });
-      container.innerHTML = html;
-      filterViewer();
-    }
+  if (!summary || summary.length === 0) {
+    container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
+    return;
+  }
+
+  // 💡 학번(id) 기준으로 오름차순 정렬 (2101 -> 2102 -> 2201 순)
+  summary.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+
+  let html = '';
+  summary.forEach(s => {
+    html += `
+      <div class="summary-card student-card" data-search="${s.id} ${s.name}">
+        <div class="summary-header" onclick="toggleDetails('${s.id}')">
+          <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
+          <div class="badge-count">총 ${s.totalCount}회</div>
+        </div>
+        <div id="details-${s.id}" class="record-details">
+          ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
+        </div>
+      </div>`;
+  });
+  container.innerHTML = html;
+  filterViewer();
+}
 
     function loadAttendanceSummary(forceRefresh = false) {
       if (cachedSummaryData && !forceRefresh) {
