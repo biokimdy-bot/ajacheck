@@ -78,11 +78,7 @@
           <div class="form-group"><input type="text" id="manualName" placeholder="이름 입력"></div>
         </div>
 
-        <!-- 💡 카메라 촬영을 바로 호출하기 위한 숨김 파일 인풋 -->
-        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="processAttendanceWithPhoto(this)">
-
-        <button id="submitBtn" class="btn-submit" onclick="triggerCamera()" disabled>촬영 및 출석체크하기</button>
-        <div style="font-size: 12px; color: #64748b; text-align: center; margin-top: 6px;">자습실 팻말이 보이도록 사진을 찍어주세요</div>
+        <button id="submitBtn" class="btn-submit" onclick="submitAttendance()" disabled>출석 체크하기</button>
         <div id="status" class="status-box">위치 확인 중...</div>
         
         <button type="button" class="btn-refresh" onclick="refreshLocation()">🔄 위치 다시 측정하기</button>
@@ -109,7 +105,7 @@
   </div>
 
   <script>
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxeQFYeqS3d4Rx_pUw1PQ0meWXGhvCynu9vp0oSrAmzHdwt97eButfOh8vobu2lmc0/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzKBm-EET7Cqvw3-7Je4QDmk9GDYLc7aN7zUPQ-MZ0mZGADjirCnmomSpErt5fOIXA/exec";
 
     const TARGET_LAT = 35.252720;
     const TARGET_LNG = 128.649387;
@@ -122,7 +118,6 @@
     let studentDataList = [];
     let selectedStudent = null;
 
-    // 💡 클라이언트 데이터 캐시 변수
     let cachedSummaryData = null;
 
     window.onload = function() {
@@ -317,7 +312,7 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function triggerCamera() {
+    function submitAttendance() {
       let id = "", name = "";
       const manualGroup = document.getElementById("manualInputGroup");
 
@@ -342,97 +337,39 @@
         return;
       }
 
-      document.getElementById("cameraInput").click();
-    }
-
-    function processAttendanceWithPhoto(input) {
-      if (!input.files || !input.files[0]) return;
-
-      let id = "", name = "";
-      const manualGroup = document.getElementById("manualInputGroup");
-      if (!manualGroup.classList.contains('hidden')) {
-        id = document.getElementById("manualStudentId").value.trim();
-        name = document.getElementById("manualName").value.trim();
-      } else if (selectedStudent) {
-        id = selectedStudent.id;
-        name = selectedStudent.name;
-      }
-
-      const file = input.files[0];
       const btn = document.getElementById("submitBtn");
       btn.disabled = true;
-      document.getElementById("status").innerHTML = "⏳ 사진 압축 중...";
+      document.getElementById("status").innerHTML = "⏳ 출석 기록 전송 중...";
 
-      const reader = new FileReader();
-
-      reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-          // 1. 이미지 리사이징 (최대 너비/높이 1000px 제한)
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 1000;
-
-          if (width > height) {
-            if (width > maxDim) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            }
-          } else {
-            if (height > maxDim) {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // 2. JPEG 포맷, 70% 화질로 압축
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-
-          document.getElementById("status").innerHTML = "⏳ AI 사진 검증 및 기록 전송 중...(20초 정도 소요)";
-
-          // 3. 압축된 이미지 전송
-          fetch(GAS_WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify({ 
-              id: id, 
-              name: name, 
-              lat: window.userLat, 
-              lng: window.userLng,
-              image: compressedBase64
-            })
-          })
-          .then(res => res.json())
-          .then(res => {
-            alert(res.message);
-            document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
-            
-            if (res.success) {
-              localStorage.setItem("lastAttendanceDate", getTodayString());
-              btn.disabled = true;
-              cachedSummaryData = null;
-            } else {
-              btn.disabled = false;
-            }
-          })
-          .catch(err => {
-            alert(name + "(" + id + ") 학생, 출석 전송 완료!");
-            document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
-            localStorage.setItem("lastAttendanceDate", getTodayString());
-            btn.disabled = true;
-            cachedSummaryData = null;
-          });
-        };
-        img.src = e.target.result;
-      };
-
-      reader.readAsDataURL(file);
+      fetch(GAS_WEB_APP_URL, {
+        method: "POST",
+        body: JSON.stringify({ 
+          id: id, 
+          name: name, 
+          lat: window.userLat, 
+          lng: window.userLng
+        })
+      })
+      .then(res => res.json())
+      .then(res => {
+        alert(res.message);
+        document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
+        
+        if (res.success) {
+          localStorage.setItem("lastAttendanceDate", getTodayString());
+          btn.disabled = true;
+          cachedSummaryData = null;
+        } else {
+          btn.disabled = false;
+        }
+      })
+      .catch(err => {
+        alert(name + "(" + id + ") 학생, 출석 전송 완료!");
+        document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
+        localStorage.setItem("lastAttendanceDate", getTodayString());
+        btn.disabled = true;
+        cachedSummaryData = null;
+      });
     }
 
     function getTodayString() {
@@ -522,7 +459,6 @@
         return;
       }
 
-      // 💡 학번(id) 기준 오름차순 정렬
       summary.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
       let html = '';
