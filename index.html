@@ -128,7 +128,22 @@
     window.onload = function() {
       loadStudentList();
       validateLocationAndTime();
+      checkTodayAttendanceDone();
     };
+
+    function checkTodayAttendanceDone() {
+      const todayStr = getTodayString();
+      const savedStatus = localStorage.getItem("lastAttendanceDate");
+
+      if (savedStatus === todayStr) {
+        const btn = document.getElementById("submitBtn");
+        const statusEl = document.getElementById("status");
+        
+        btn.disabled = true;
+        statusEl.innerHTML = "✅ 오늘 출석체크를 이미 완료했습니다.";
+        statusEl.style.color = "#2563eb";
+      }
+    }
 
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -236,9 +251,18 @@
           }
 
           if (dist <= ALLOWED_RADIUS) {
-            statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(출석 가능)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
-            statusEl.style.color = "green";
-            btn.disabled = false;
+            const todayStr = getTodayString();
+            const isDone = localStorage.getItem("lastAttendanceDate") === todayStr;
+
+            if (isDone) {
+              statusEl.innerHTML = "✅ 오늘 출석체크를 이미 완료했습니다.";
+              statusEl.style.color = "#2563eb";
+              btn.disabled = true;
+            } else {
+              statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(출석 가능)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
+              statusEl.style.color = "green";
+              btn.disabled = false;
+            }
             window.userLat = pos.coords.latitude;
             window.userLng = pos.coords.longitude;
           } else {
@@ -247,13 +271,29 @@
             btn.disabled = true;
           }
         },
-        function() {
-          statusEl.innerHTML = "❌ 위치 권한이 거부되었습니다.";
+        function(err) {
           statusEl.style.color = "red";
           btn.disabled = true;
+
+          if (err.code === err.PERMISSION_DENIED) {
+            statusEl.innerHTML = `
+              ❌ 위치 권한이 거부되었습니다.<br>
+              <small style="color:#64748b;">주소창의 <b>🔒(아이콘)</b> 또는 <b>⚙️설정</b>을 눌러 위치 권한을 '허용'으로 변경해 주세요.</small><br>
+              <button type="button" onclick="requestLocationAgain()" style="margin-top:8px; padding:6px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">
+                🔄 위치 권한 다시 요청하기
+              </button>
+            `;
+          } else {
+            statusEl.innerHTML = "❌ 위치 정보를 가져올 수 없습니다. GPS를 확인해 주세요.";
+          }
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
+    }
+
+    function requestLocationAgain() {
+      alert("브라우저 보안 설정으로 인해 직접 위치 권한을 '허용'으로 변경해 주셔야 합니다.\n\n- Chrome: 주소창 왼쪽 🔒 클릭 ➔ 권한 ➔ 위치 허용\n- Safari: 주소창 왼쪽 '가나' 또는 🔒 클릭 ➔ 웹사이트 설정 ➔ 위치 허용");
+      validateLocationAndTime();
     }
 
     function refreshLocation() {
@@ -370,13 +410,19 @@
           .then(res => {
             alert(res.message);
             document.getElementById("status").innerHTML = res.success ? "✅ " + res.message : "⚠️ " + res.message;
-            // 성공한 경우에만 버튼을 비활성화하고, 실패한 경우는 다시 클릭할 수 있도록 활성화
-            btn.disabled = res.success;
-            if (res.success) cachedSummaryData = null;
+            
+            if (res.success) {
+              localStorage.setItem("lastAttendanceDate", getTodayString());
+              btn.disabled = true;
+              cachedSummaryData = null;
+            } else {
+              btn.disabled = false;
+            }
           })
           .catch(err => {
             alert(name + "(" + id + ") 학생, 출석 전송 완료!");
             document.getElementById("status").innerHTML = "✅ 출석 기록 전송 완료";
+            localStorage.setItem("lastAttendanceDate", getTodayString());
             btn.disabled = true;
             cachedSummaryData = null;
           });
@@ -467,32 +513,32 @@
     }
 
     function renderAttendanceSummary(summary) {
-  const container = document.getElementById("viewerContent");
+      const container = document.getElementById("viewerContent");
 
-  if (!summary || summary.length === 0) {
-    container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
-    return;
-  }
+      if (!summary || summary.length === 0) {
+        container.innerHTML = '<div class="status-box">아직 출석 기록이 없습니다.</div>';
+        return;
+      }
 
-  // 💡 학번(id) 기준으로 오름차순 정렬 (2101 -> 2102 -> 2201 순)
-  summary.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+      // 💡 학번(id) 기준 오름차순 정렬
+      summary.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
-  let html = '';
-  summary.forEach(s => {
-    html += `
-      <div class="summary-card student-card" data-search="${s.id} ${s.name}">
-        <div class="summary-header" onclick="toggleDetails('${s.id}')">
-          <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
-          <div class="badge-count">총 ${s.totalCount}회</div>
-        </div>
-        <div id="details-${s.id}" class="record-details">
-          ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
-        </div>
-      </div>`;
-  });
-  container.innerHTML = html;
-  filterViewer();
-}
+      let html = '';
+      summary.forEach(s => {
+        html += `
+          <div class="summary-card student-card" data-search="${s.id} ${s.name}">
+            <div class="summary-header" onclick="toggleDetails('${s.id}')">
+              <div class="student-info">${s.name} <small style="color:#64748b">(${s.id})</small></div>
+              <div class="badge-count">총 ${s.totalCount}회</div>
+            </div>
+            <div id="details-${s.id}" class="record-details">
+              ${s.records.map(r => `<div class="record-item"><span>📅 ${r.date}</span><span>⏰ ${r.time}</span></div>`).join('')}
+            </div>
+          </div>`;
+      });
+      container.innerHTML = html;
+      filterViewer();
+    }
 
     function loadAttendanceSummary(forceRefresh = false) {
       if (cachedSummaryData && !forceRefresh) {
