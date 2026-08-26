@@ -259,7 +259,9 @@
               statusEl.style.color = "#2563eb";
               btn.disabled = true;
             } else {
-              statusEl.innerHTML = IS_TEST_MODE ? "✅ 위치 확인 완료 <br><small style='color:#2563eb'>(출석 가능)</small>" : "✅ 자습실 위치 확인 완료 (출석 가능)";
+              statusEl.innerHTML = IS_TEST_MODE 
+              ? `✅ 위치 확인 완료<br>(거리: ${Math.round(dist)}m) <small style='color:#2563eb'>(출석 가능)</small>` 
+              : `✅ 자습실 위치 확인 완료<br>(거리: ${Math.round(dist)}m, 출석 가능)`;
               statusEl.style.color = "green";
               btn.disabled = false;
             }
