@@ -232,23 +232,37 @@
       }
 
       if (!navigator.geolocation) {
-        statusEl.innerHTML = "❌ 위치 서비스를 지원하지 않는 기기입니다.";
-        return;
-      }
+  statusEl.innerHTML = "❌ 위치 서비스를 지원하지 않는 기기입니다.";
+  return;
+}
 
-      statusEl.innerHTML = "📍 자습실 위치 확인 중...";
-      statusEl.style.color = "#333";
-      
-      navigator.geolocation.getCurrentPosition(
-        function(pos) {
-          const dist = getDistance(pos.coords.latitude, pos.coords.longitude, TARGET_LAT, TARGET_LNG);
-          
-          if (pos.coords.accuracy > 25) {
-            statusEl.innerHTML = "❌ GPS 오차가 큽니다. 창가 근처에서 다시 시도해 주세요.";
-            statusEl.style.color = "red";
-            btn.disabled = true;
-            return;
-          }
+statusEl.innerHTML = "📍 자습실 위치 확인 중...";
+statusEl.style.color = "#333";
+
+navigator.geolocation.getCurrentPosition(
+  function(pos) {
+    const dist = getDistance(pos.coords.latitude, pos.coords.longitude, TARGET_LAT, TARGET_LNG);
+    
+    if (pos.coords.accuracy > 25) {
+      statusEl.innerHTML = "❌ GPS 오차가 큽니다. 창가 근처에서 다시 시도해 주세요.";
+      statusEl.style.color = "red";
+      btn.disabled = true;
+      return;
+    }
+    
+    // ... 이후 거리(dist) 검증 및 출석 처리 로직 ...
+  },
+  function(err) {
+    statusEl.innerHTML = "❌ 위치 정보 수신 실패: GPS를 켜고 다시 시도해 주세요.";
+    statusEl.style.color = "red";
+    btn.disabled = true;
+  },
+  {
+    enableHighAccuracy: true, // 삼성 브라우저 등에서 고정밀 GPS 수신 강제
+    timeout: 10000,           // 10초 내 위치 수신 시도
+    maximumAge: 0             // 캐시된 이전 위치 데이터 사용 금지
+  }
+);
 
           if (dist <= ALLOWED_RADIUS) {
             const todayStr = getTodayString();
