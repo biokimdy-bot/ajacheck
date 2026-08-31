@@ -96,6 +96,12 @@
 
     <!-- 3. 누적 출석 기록 탭 -->
     <div id="tab-view" class="hidden">
+      <!-- 연도/월 선택 영역 추가 -->
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <select id="monthPickerYear" onchange="renderAttendanceSummary(cachedSummaryData)" style="flex: 1; height:44px; padding:0 8px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; font-weight:600; color:#334155; background:white;"></select>
+        <select id="monthPickerMonth" onchange="renderAttendanceSummary(cachedSummaryData)" style="flex: 1; height:44px; padding:0 8px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; font-weight:600; color:#334155; background:white;"></select>
+      </div>
+
       <div style="display: flex; gap: 8px; margin-bottom: 14px;">
         <input type="text" id="searchInput" style="flex: 1; height:44px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px;" placeholder="이름 또는 학번 검색..." onkeyup="filterViewer()">
         <select id="sortSelect" onchange="changeSortOrder()" style="height:44px; padding:0 8px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; font-weight:600; color:#334155; background:white;">
@@ -126,10 +132,40 @@
     let currentSortOrder = 'id';
 
     window.onload = function() {
+      initMonthPickerOptions();
       loadStudentList();
       validateLocationAndTime();
       checkTodayAttendanceDone();
     };
+
+    function initMonthPickerOptions() {
+      const yearSelect = document.getElementById("monthPickerYear");
+      const monthSelect = document.getElementById("monthPickerMonth");
+      if (!yearSelect || !monthSelect) return;
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
+      yearSelect.innerHTML = '<option value="ALL">전체 연도</option>';
+      for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = `${y}년`;
+        if (y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+      }
+
+      monthSelect.innerHTML = '<option value="ALL">전체 월</option>';
+      for (let m = 1; m <= 12; m++) {
+        const opt = document.createElement("option");
+        const valStr = m < 10 ? `0${m}` : `${m}`;
+        opt.value = valStr;
+        opt.textContent = `${m}월`;
+        if (m === currentMonth) opt.selected = true;
+        monthSelect.appendChild(opt);
+      }
+    }
 
     function checkTodayAttendanceDone() {
       const todayStr = getTodayString();
@@ -478,7 +514,35 @@
         return;
       }
 
-      summary.sort((a, b) => {
+      const selectedYear = document.getElementById("monthPickerYear") ? document.getElementById("monthPickerYear").value : "ALL";
+      const selectedMonth = document.getElementById("monthPickerMonth") ? document.getElementById("monthPickerMonth").value : "ALL";
+
+      const processedSummary = summary.map(s => {
+        const filteredRecords = s.records.filter(r => {
+          const parts = r.date.split('.');
+          if (parts.length < 2) return true;
+          const rYear = parts[0];
+          const rMonth = parts[1];
+
+          const matchesYear = (selectedYear === "ALL" || rYear === selectedYear);
+          const matchesMonth = (selectedMonth === "ALL" || rMonth === selectedMonth);
+          return matchesYear && matchesMonth;
+        });
+
+        return {
+          id: s.id,
+          name: s.name,
+          records: filteredRecords,
+          totalCount: filteredRecords.length
+        };
+      }).filter(s => s.totalCount > 0);
+
+      if (processedSummary.length === 0) {
+        container.innerHTML = '<div class="status-box">선택한 기간의 출석 기록이 없습니다.</div>';
+        return;
+      }
+
+      processedSummary.sort((a, b) => {
         if (currentSortOrder === 'count') {
           if (b.totalCount !== a.totalCount) {
             return b.totalCount - a.totalCount;
@@ -490,7 +554,7 @@
       });
 
       let html = '';
-      summary.forEach(s => {
+      processedSummary.forEach(s => {
         html += `
           <div class="summary-card student-card" data-search="${s.id} ${s.name}">
             <div class="summary-header" onclick="toggleDetails('${s.id}')">
